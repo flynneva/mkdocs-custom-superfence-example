@@ -1,0 +1,73 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  WORKSPACE_PATH: mkdocs
+
+# only run one build doc workflow at a time, cancel any running ones
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-mkdocs:
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/main'
+    steps:
+      - name: Make sure output directory exists
+        run: mkdir -p ${{ env.WORKSPACE_PATH }}
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.WORKSPACE_PATH }}
+      - name: Build mkdocs site
+        run: |
+          cd ${{ env.WORKSPACE_PATH }}
+          # ensure gh-pages git history is fetched
+          git fetch origin gh-pages --depth=1
+          sudo apt-get update -y
+          # install mkdocs dependencies
+          python3 -m pip install -r requirements.txt
+          # build site
+          mkdocs build
+      - name: Upload docs site
+        uses: actions/upload-artifact@v3
+        with:
+          name: superfence_example_site
+          path: ${{ env.WORKSPACE_PATH }}/site
+  deploy_docs:
+    runs-on: ubuntu-latest
+    # only run on main branch after jobs listed in `needs` have finished (successful or not)
+    if: github.ref == 'refs/heads/main' && always()
+    needs: [build-mkdocs]
+    steps:
+      - name: Make sure output directory exists
+        run: mkdir -p ${{ env.WORKSPACE_PATH }}
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.WORKSPACE_PATH }}
+      - name: Deploy mkdocs site
+        shell: bash
+        run: |
+          cd ${{ env.WORKSPACE_PATH }}
+          # ensure gh-pages git history is fetched
+          git fetch origin gh-pages --depth=1
+          sudo apt-get update -y
+          # install docs dependencies
+          python3 -m pip install -r requirements.txt
+          # TODO: mike rebuilds entire site, instead we should
+          # skip the build and download site artifact from previous workflow
+          if [ -z ${{ github.event.release.tag_name }}]; then
+            export NEW_VERSION=main
+          else
+            export NEW_VERSION=${{ github.event.release.tag_name }}
+          fi
+          git config user.name doc-bot
+          git config user.email doc-bot@ros-realtime.com
+          mike deploy --push --update-aliases $NEW_VERSION latest
