@@ -1,53 +1,58 @@
+# Copyright 2022 Apex.AI, Inc.
+# All rights reserved.
+
 import logging
 
 from bs4 import BeautifulSoup
 
 from pymdownx.superfences import SuperFencesBlockPreprocessor, SuperFencesCodeExtension
 
-
 log = logging.getLogger('mkdocs')
 
+SUPPORTED_PREFIXES = {
+    'prefix': '*',  # use prefix in options (e.g. ```prefix prefix="test")
+    'venv': '(venv)$',
+    'dollar': '$',
+    'hash': '#',
+}
 
-def prefix_validator(language, inputs, options, attrs, md):
-    """Custom validator."""
-    log.info('Validating if this code block is a prefix code block')
-    result = True
-    
+
+def validator(language, inputs, options, attrs, md):
+    """Validate a prefix fence from the list of supported prefixes."""
+    options['prefix'] = ''
     for k, v in inputs.items():
-        # Only accept option called `prefix`
-        if k == 'prefix':
+        # add all inputs to options
+        if k in SUPPORTED_PREFIXES.keys():
+            if k == 'prefix':
+                # use custom value if custom prefix
+                options[k] = v
+            else:
+                # use pre-defined supported value for key
+                options['prefix'] = SUPPORTED_PREFIXES[k]
+            
+            if 'lines' not in options:
+                options['lines'] = 0  # default to use prefix on all lines if set
+        else:
             options[k] = v
-        elif bool(options):
-            if 'prefix' in options:
-                # Only use lines option if prefix is set
-                if k == 'lines':
-                    options[k] = v
-        else:
-            result = False
-
-    if 'prefix' not in options:
-        options['prefix'] = ''
-        options['lines'] = -1  # this means do not apply prefix to any lines
-    else:
-        if 'lines' not in options:
-            options['lines'] = 0  # this means to apply prefix to every line
-    return result
+    
+    return True
 
 
-def prefix_format(source, language, class_name, options, md, **kwargs):
-    """Format a given code block with a given prefix as the prefix."""
-    log.info('Custom prefix superfence detected!')
+def formatter(source, language, class_name, options, md, **kwargs):
+    """Format a given code block with a given prefix if available."""
+
+    prefix = ''
+    lines = '0'
     num_lines = len(source.splitlines())
+    classes = []
+    if 'classes' in kwargs:
+        classes = classes + kwargs['classes']
+    classes.append(class_name)
+    if options['prefix']:
+        prefix = options['prefix']
+        log.info(f'Custom `{prefix}` superfence detected')
+        #class_name = 'highlight'  # use the prefix as the class name
 
-    try:
-        if 'prefix' in options:
-            prefix = options['prefix']
-        else:
-            prefix = ''
-        if 'classes' in kwargs:
-            classes = kwargs['classes']
-        else:
-            classes = []
         if options['lines'] == 0:
             # assume prefix to be set for every line in codeblock
             options['lines'] = f"1-{num_lines}"
@@ -63,11 +68,13 @@ def prefix_format(source, language, class_name, options, md, **kwargs):
         # use linenum preprocessor to replace them later with prefix
         if 'linenums' not in options:
             options['linenums'] = '1'
+
+    try:
         sf_ext = SuperFencesCodeExtension()
         config = sf_ext.getConfigs()
         preprocessor = SuperFencesBlockPreprocessor(md)
         preprocessor.config = config
-        preprocessor.extension = sf_ext
+        preprocessor.extension = sf_ext 
         preprocessor.get_hl_settings()
         preprocessor.line_count = num_lines
         lines_int = preprocessor.parse_hl_lines(lines)
@@ -81,17 +88,20 @@ def prefix_format(source, language, class_name, options, md, **kwargs):
                 id_value='',
                 attrs=None),
             features='lxml')
-        line_nums_col = soup.find("div", {"class": "linenodiv"})
-        for index, row in enumerate(line_nums_col.findAll(class_='normal')):
-            if (index + 1) in lines_int:  # index starts at 0, lines expected to start at 1
-                row.string = prefix
-            else:
-                row.string = ''
-        if not keep_hl:
-            # remove highlight if hl_lines was not specified in markdown
-            hl_div = soup.find("div", {"class": "hl_lines highlight"})
-            hl_div.attrs['class'] = 'prefix'
+        if prefix:
+            line_nums_col = soup.find("div", {"class": "linenodiv"})
+            for index, row in enumerate(line_nums_col.findAll(class_='normal')):
+                if (index + 1) in lines_int:  # index starts at 0, lines expected to start at 1
+                    row.string = prefix
+                else:
+                    row.string = ''
+                if not keep_hl:
+                    # remove highlight if hl_lines was not specified in markdown
+                    hl_div = soup.find("span", {"class": "hll"})
+                    if hl_div is not None:
+                        hl_div.attrs['class'] = ""
     except Exception as err:
         log.error(err)
         raise
     return soup
+

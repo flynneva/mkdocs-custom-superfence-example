@@ -1,20 +1,36 @@
 # custom superfence
 
-```prefix prefix="(test)$"
-echo "This is a test of the prefix superfence"
+## general custom prefix
+
+```bash prefix="pi@raspberrypi"
+echo "This is a test of the custom prefix superfence"
 ```
 
-```prefix prefix="$"
+## dollar superfence
+
+```bash dollar title="Dollar superfence"
 echo "Another test"
 ```
 
-```prefix prefix="(venv)$"
+## venv superfence
+
+```py venv
+python3 -m pip install mkdocs  # (1)
+```
+
+1. inside a venv
+
+# hash superfence
+
+```bash hash
 echo "Last one"
 ```
 
 
-# venv superfence
+## Normal superfence
 
-```venv
-python3 -m pip install mkdocs  # inside a venv
+```bash title="This is a simple code fence"
+print("Test")  # (1)
 ```
+
+1. This is a test

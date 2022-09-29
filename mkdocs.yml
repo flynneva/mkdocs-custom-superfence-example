@@ -3,14 +3,12 @@ plugins:
   - search
 theme:
   name: material
+  features:
+    - content.code.annotate
 markdown_extensions:
   - pymdownx.superfences:
       custom_fences:
-        - name: prefix
-          class: prefix
-          format: !!python/name:superfences_examples.prefix.prefix_format
-          validator: !!python/name:superfences_examples.prefix.prefix_validator
-        - name: venv
-          class: venv
-          format: !!python/name:superfences_examples.venv.venv_format
-          validator: !!python/name:superfences_examples.venv.venv_validator
+        - name: '*'
+          class: '*'
+          format: !!python/name:superfences_examples.prefix.formatter
+          validator: !!python/name:superfences_examples.prefix.validator
